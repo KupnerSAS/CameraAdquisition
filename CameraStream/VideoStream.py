@@ -4,11 +4,13 @@ from PIL import Image
 from PIL import ImageTk
 import cv2
 
+
 class Camera:
     def __init__(self, master):
         frame = Frame(master)
         frame.pack()
         self.color_change = True
+        self.stream_state = True
 
         self.options = ['Continuous',
                         'Single Frame',
@@ -29,8 +31,7 @@ class Camera:
         self.dropDownMenu_2 = tkinter.OptionMenu(master, self.var_2, *self.options_2)
         self.dropDownMenu_2.pack()
 
-
-        self.submit = tkinter.Button(master, text='Submit', command=lambda :self.show(self.var.get(), self.var_2.get()))
+        self.submit = tkinter.Button(master, text='Submit', command=lambda: self.show(self.var.get(), self.var_2.get()))
         self.submit.pack()
         
         self.video_stream = Label(master)
@@ -64,9 +65,9 @@ class Camera:
     def change_2(self):
         self.color_change = False
 
-    def show(self, value_1, value_2):
+    @staticmethod
+    def show(value_1, value_2):
         print(f'Option: {value_1} and {value_2}')
-
 
     def get_image_from_camera(self):
         if self.stream_state:
@@ -89,6 +90,7 @@ def main():
     Camera(root)
 
     root.mainloop()
+
 
 if __name__ == "__main__":
     main()
