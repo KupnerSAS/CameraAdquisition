@@ -1,41 +1,163 @@
-import PySpin
-import sys
+from pyspin import PySpin
 import cv2
-import tkinter
+from tkinter import *
 from PIL import Image
 from PIL import ImageTk
 
+
 class VideoStream:
-   
+
     # Constructor
-    def __init__(self, master, cam):
+    def __init__(self, master, cam, timeout):
         master.title('Stream')
         master.geometry('800x800')
-        self.panel = tkinter.Label(master)
+        self.panel = Label(master)
         self.panel.pack()
+
+        self.slider_1 = Scale(master, from_=1000, to=200000, orient=HORIZONTAL, resolution=1000, length=1000)
+        self.slider_1.pack()
+
         self.stream_state = True
-        self.get_image_from_camera(cam)
-        
-        self.button_1 = tkinter.Button(master, text='Start video', command=lambda: self.start_video(cam))
+        self.exposure_time_to_set = 1000000.0
+
+        # Modifico el tiempo de exposure. 
+        self.configure_exposure(cam, self.exposure_time_to_set)
+
+        self.button_1 = Button(master, text='Start video', command=lambda: self.start_video(cam, timeout))
         self.button_1.pack()
 
-        self.button_2 = tkinter.Button(master, text='Close video', command=lambda: self.stop_video(cam))
+        self.button_2 = Button(master, text='Close video', command=lambda: self.stop_video(cam, timeout))
         self.button_2.pack()
 
+        self.button_3 = Button(master, text='Change exposure', command=lambda: self.slider(cam, timeout))
+        self.button_3.pack()
 
-    def start_video(self, cam):
-        self.stream_state = True
-        self.get_image_from_camera(cam)
-
-    def stop_video(self, cam):
+    def slider(self, cam, timeout):
+        exposure_time_to_set = self.slider_1.get()
         self.stream_state = False
-        self.get_image_from_camera(cam)
+        self.configure_exposure(cam, exposure_time_to_set)
+        self.get_image_from_camera(cam, timeout)
+        self.stream_state = True
 
-    def show(self, value_1, value_2):
+    @staticmethod
+    def show(value_1, value_2):
         print(f'Option: {value_1} and {value_2}')
 
+    def start_video(self, cam, timeout):
+        self.stream_state = True
+        self.get_image_from_camera(cam, timeout)
+
+    def stop_video(self, cam, timeout):
+        self.stream_state = False
+        self.get_image_from_camera(cam, timeout)
+
+    @staticmethod
+    def configure_exposure(cam, exposure_time):
+        """
+        This function configures a custom exposure time. Automatic exposure is turned
+        off in order to allow for the customization, and then the custom setting is
+        applied.
+
+        :param exposure_time:
+        :param cam: Camera to configure exposure for.
+        :type cam: CameraPtr
+        :return: True if successful, False otherwise.
+        :rtype: bool
+        """
+
+        print('*** CONFIGURING EXPOSURE ***\n')
+
+        try:
+            result = True
+
+            # Turn off automatic exposure mode
+            #
+            # *** NOTES ***
+            # Automatic exposure prevents the manual configuration of exposure
+            # times and needs to be turned off for this example. Enumerations
+            # representing entry nodes have been added to QuickSpin. This allows
+            # for the much easier setting of enumeration nodes to new values.
+            #
+            # The naming convention of QuickSpin enums is the name of the
+            # enumeration node followed by an underscore and the symbolic of
+            # the entry node. Selecting "Off" on the "ExposureAuto" node is
+            # thus named "ExposureAuto_Off".
+            #
+            # *** LATER ***
+            # Exposure time can be set automatically or manually as needed. This
+            # example turns automatic exposure off to set it manually and back
+            # on to return the camera to its default state.
+
+            if cam.ExposureAuto.GetAccessMode() != PySpin.RW:
+                print('Unable to disable automatic exposure. Aborting...')
+                return False
+
+            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+            print('Automatic exposure disabled...')
+
+            # Set exposure time manually; exposure time recorded in microseconds
+            #
+            # *** NOTES ***
+            # Notice that the node is checked for availability and writability
+            # prior to the setting of the node. In QuickSpin, availability and
+            # writability are ensured by checking the access mode.
+            #
+            # Further, it is ensured that the desired exposure time does not exceed
+            # the maximum. Exposure time is counted in microseconds - this can be
+            # found out either by retrieving the unit with the GetUnit() method or
+            # by checking SpinView.
+
+            if cam.ExposureTime.GetAccessMode() != PySpin.RW:
+                print('Unable to set exposure time. Aborting...')
+                return False
+
+            # Ensure desired exposure time does not exceed the maximum
+
+            exposure_time = min(cam.ExposureTime.GetMax(), exposure_time)
+            cam.ExposureTime.SetValue(exposure_time)
+            print('Shutter time set to %s us...\n' % exposure_time)
+
+        except PySpin.SpinnakerException as ex:
+            print('Error: %s' % ex)
+            result = False
+
+        return result
+
+    @staticmethod
+    def reset_exposure(cam):
+        """
+        This function returns the camera to a normal state by re-enabling automatic exposure.
+
+        :param cam: Camera to reset exposure on.
+        :type cam: CameraPtr
+        :return: True if successful, False otherwise.
+        :rtype: bool
+        """
+        try:
+            result = True
+
+            # Turn automatic exposure back on
+            #
+            # *** NOTES ***
+            # Automatic exposure is turned on in order to return the camera to its
+            # default state.
+
+            if cam.ExposureAuto.GetAccessMode() != PySpin.RW:
+                print('Unable to enable automatic exposure (node retrieval). Non-fatal error...')
+                return False
+
+            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Continuous)
+
+            print('Automatic exposure enabled...')
+
+        except PySpin.SpinnakerException as ex:
+            print('Error: %s' % ex)
+            result = False
+
+        return result
+
     # Método que se encarga de tomar las imágenes de la cámara una vez ya inicializada.
-    def get_image_from_camera(self, cam):
+    def get_image_from_camera(self, cam, timeout):
         try:
             if self.stream_state:
                 # Devuelve la siguiente imágen
@@ -48,12 +170,12 @@ class VideoStream:
                 # Una vez que la imagen del buffer se guarda y/o no se necesita mas, 
                 # la imagen debe liberarse para evitar que el buffer se llene.
 
-                image_result = cam.GetNextImage(100000)
+                image_result = cam.GetNextImage(timeout)
 
                 # verifico que la imágen esta completa
                 if image_result.IsIncomplete():
                     print('Image incomplete with image status %d ...' % image_result.GetImageStatus())
-                    
+
                 else:
                     # Adquiero los datos de la imágen como un numpy array
                     image_data = image_result.GetNDArray()
@@ -63,11 +185,11 @@ class VideoStream:
                     frame = Image.fromarray(frame)
                     frame = ImageTk.PhotoImage(frame)
 
-                    self.panel.configure(image = frame)
+                    self.panel.configure(image=frame)
                     self.panel.image = frame
 
-                # Llamo al tkinter para llamar nuevamente al método get_image_from_camera
-                self.panel.after(1, self.get_image_from_camera, cam)
+                # Llamo al para llamar nuevamente al método get_image_from_camera
+                self.panel.after(1, self.get_image_from_camera, cam, timeout)
 
                 image_result.Release()
 
@@ -75,6 +197,7 @@ class VideoStream:
             print('Error: %s' % ex)
 
 
+# Inicializo la cámara y ejecuto acquire()
 def run_single_camera(cam):
     """
     Ejecuta cada cámara de forma individual.
@@ -102,9 +225,11 @@ def run_single_camera(cam):
     except PySpin.SpinnakerException as ex:
         print('Error: %s' % ex)
         result = False
-    
+
     return result
 
+
+# Configuro los modes de adquisicion, disparo, formato y el timeout. Luegoejecuta root_loop()
 def acquire(cam, nodemap, nodemap_tldevice):
     """
     Adquiere imágnes de un dispositivo y los muestra en un GUI.
@@ -117,23 +242,23 @@ def acquire(cam, nodemap, nodemap_tldevice):
     :type nodemap_tldevice: INodeMap
     :return: True si es exitoso, False en cualquier otro caso.
     :rtype: bool
-    """ 
-    
-    sNodemap = cam.GetTLStreamNodeMap()
+    """
+
+    s_nodemap = cam.GetTLStreamNodeMap()
 
     # Configuro el bufferhandling mode a NewsetOnly
-    node_bufferhandling_mode = PySpin.CEnumerationPtr(sNodemap.GetNode('StreamBufferHandlingMode'))
+    node_bufferhandling_mode = PySpin.CEnumerationPtr(s_nodemap.GetNode('StreamBufferHandlingMode'))
     if not PySpin.IsAvailable(node_bufferhandling_mode) or not PySpin.IsWritable(node_bufferhandling_mode):
         print('Unable to set stream buffer handling mode.. Aborting...')
         return False
-    
+
     # Devuelvo el entry node del enumeration node
     node_newestonly = node_bufferhandling_mode.GetEntryByName('NewestOnly')
     if not PySpin.IsAvailable(node_newestonly) or not PySpin.IsReadable(node_newestonly):
         print('Unable to set stream buffer handling mode.. Aborting...')
-        return False    
+        return False
 
-    # Devuelve un valor enter del entry node
+        # Devuelve un valor enter del entry node
     node_newestonly_mode = node_newestonly.GetValue()
 
     # Asigno el valor entero del entry node como nuevo valor del enumeration node
@@ -148,10 +273,11 @@ def acquire(cam, nodemap, nodemap_tldevice):
 
         # Devuelve el entry node del enumeration node
         node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
-        if not PySpin.IsAvailable(node_acquisition_mode_continuous) or not PySpin.IsReadable(node_acquisition_mode_continuous):
+        if not PySpin.IsAvailable(node_acquisition_mode_continuous) or not PySpin.IsReadable(
+                node_acquisition_mode_continuous):
             print('Unable to set acquisition mode to continuous (entry retrieval2). Aborting...')
             return False
-        
+
         # Devuelve un entero del entry node
         node_acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
 
@@ -163,14 +289,14 @@ def acquire(cam, nodemap, nodemap_tldevice):
         # Se configura el tipo de formato deseado
         node_pixel_format = PySpin.CEnumerationPtr(nodemap.GetNode("PixelFormat"))
         if not PySpin.IsAvailable(node_pixel_format) or not PySpin.IsWritable(node_pixel_format):
-            print ("Unable to set Pixel Format. Aborting...")
+            print("Unable to set Pixel Format. Aborting...")
             return False
 
         else:
             # Retrieve entry node from enumeration node
             node_pixel_format_mono8 = PySpin.CEnumEntryPtr(node_pixel_format.GetEntryByName("Mono8"))
             if not PySpin.IsAvailable(node_pixel_format_mono8) or not PySpin.IsReadable(node_pixel_format_mono8):
-                print ("Unable to set Pixel Format to Mono8. Aborting...")
+                print("Unable to set Pixel Format to Mono8. Aborting...")
                 return False
 
             # Retrieve integer value from entry node
@@ -179,35 +305,45 @@ def acquire(cam, nodemap, nodemap_tldevice):
             # Set integer value from entry node as new value of enumeration node
             node_pixel_format.SetIntValue(pixel_format_mono8)
 
-            print ("Pixel Format set to Mono8 ...")
+            print("Pixel Format set to Mono8 ...")
 
-
-        device_serial_number = ''
+        # device_serial_number = ''
         node_device_serial_number = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
         if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
             device_serial_number = node_device_serial_number.GetValue()
             print('Device serial number retrieved as %s...' % device_serial_number)
 
+        # timeout = 0
+        if cam.ExposureTime.GetAccessMode() == PySpin.RW or cam.ExposureTime.GetAccessMode() == PySpin.RO:
+            # The exposure time is retrieved in µs so it needs to be converted to ms
+            # to keep consistency with the unit being used in GetNextImage
+            timeout = int(cam.ExposureTime.GetValue() / 1000 + 1000)
+        else:
+            print('Unable to get exposure time. Aborting...')
+            return False
 
         # Devuelve y muestra las imágenes
-        root_loop(cam)
-    
-    
+        root_loop(cam, timeout)
+
     except PySpin.SpinnakerException as ex:
         print('Error: %s' % ex)
         return False
-    
+
     return True
-   
-def root_loop(cam):
+
+
+# Creo el objeto de la clase VideoStream()
+def root_loop(cam, timeout):
     cam.BeginAcquisition()
     print('Acquiring images...')
 
-    root = tkinter.Tk()
-    VideoStream(root, cam)
+    root = Tk()
+    VideoStream(root, cam, timeout)
     root.mainloop()
-        
+    VideoStream.reset_exposure(cam)
+
     cam.EndAcquisition()
+
 
 def main():
     result = True
@@ -227,8 +363,7 @@ def main():
 
     # Si no hay cámaras
     if num_cameras == 0:
-
-        # Limpio la lista de cámaras 
+        # Limpio la lista de cámaras
         cam_list.Clear()
 
         # Libero las instancias del sistema
@@ -237,15 +372,14 @@ def main():
         print('Not enough cameras!')
         input('Done! Press Enter to exit...')
         return False
-    
+
     # Ejecuto para cada una de las cámaras conectadas
     for i, cam in enumerate(cam_list):
-        
         print('Running example for camera %d...' % i)
 
         result &= run_single_camera(cam)
         print('Camera %d example complete... \n' % i)
-    
+
     # Elimino la referencia a la cámara usada
     del cam
 
