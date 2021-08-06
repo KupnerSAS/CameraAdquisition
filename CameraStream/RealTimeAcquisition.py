@@ -9,7 +9,7 @@ class VideoStream:
 
     # Constructor
     def __init__(self, master, cam, timeout):
-        master.title('Stream window')
+        master.title('Stream')
         master.geometry('800x800')
         self.panel = Label(master)
         self.panel.pack()
