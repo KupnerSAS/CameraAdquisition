@@ -16,39 +16,41 @@ class VideoStream:
         self.panel = Label(master)
         self.panel.pack()
 
-        self.slider_1 = Scale(master, from_=1000, to=200000, orient=HORIZONTAL, resolution=1000, length=1000, command=self.slider)
+        # Defino una variable para detener el muestreo
+        self.stream_state = False
+        self.exposure_time_to_set = 100000
+
+        self.slider_1 = Scale(master,
+                              from_=1000,
+                              to=200000,
+                              orient=HORIZONTAL,
+                              resolution=1000,
+                              length=1000,
+                              command=self.slider)
         self.slider_1.pack()
 
-        self.stream_state = True
-        self.exposure_time_to_set = 1000000.0
-
-        # Modifico el tiempo de exposure. 
+        # Aplico el tiempo de exposure inicial.
         self.configure_exposure(self.exposure_time_to_set)
 
-        self.button_1 = Button(master, text='Start video', command=self.start_video)
+        self.button_1 = Button(master, text='Video ON/OFF', command=self.switch_video)
         self.button_1.pack()
 
-        self.button_2 = Button(master, text='Close video', command=self.stop_video)
-        self.button_2.pack()
-
     def slider(self, value):
+        # El método slider, devuelve el valor como un string por esto se convierte a int
         exposure_time_to_set = int(value)
         self.stream_state = False
         self.configure_exposure(exposure_time_to_set)
         self.get_image_from_camera()
         self.stream_state = True
 
-    @staticmethod
-    def show(value_1, value_2):
-        print(f'Option: {value_1} and {value_2}')
+    def switch_video(self):
+        if self.stream_state:
+            self.stream_state = False
+            self.get_image_from_camera()
 
-    def start_video(self):
-        self.stream_state = True
-        self.get_image_from_camera()
-
-    def stop_video(self):
-        self.stream_state = False
-        self.get_image_from_camera()
+        else:
+            self.stream_state = True
+            self.get_image_from_camera()
 
     def configure_exposure(self, exposure_time):
         """
@@ -184,7 +186,7 @@ class VideoStream:
                     self.panel.configure(image=frame)
                     self.panel.image = frame
 
-                # Llamo al para llamar nuevamente al método get_image_from_camera
+                # Llamo nuevamente al método get_image_from_camera para tener un video
                 self.panel.after(1, self.get_image_from_camera)
 
                 image_result.Release()
