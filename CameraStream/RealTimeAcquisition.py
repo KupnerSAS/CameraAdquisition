@@ -11,56 +11,52 @@ class VideoStream:
     def __init__(self, master, cam, timeout):
         master.title('Stream')
         master.geometry('800x800')
+        self.cam = cam
+        self.timeout = timeout
         self.panel = Label(master)
         self.panel.pack()
 
-        self.slider_1 = Scale(master, from_=1000, to=200000, orient=HORIZONTAL, resolution=1000, length=1000)
+        self.slider_1 = Scale(master, from_=1000, to=200000, orient=HORIZONTAL, resolution=1000, length=1000, command=self.slider)
         self.slider_1.pack()
 
         self.stream_state = True
         self.exposure_time_to_set = 1000000.0
 
         # Modifico el tiempo de exposure. 
-        self.configure_exposure(cam, self.exposure_time_to_set)
+        self.configure_exposure(self.exposure_time_to_set)
 
-        self.button_1 = Button(master, text='Start video', command=lambda: self.start_video(cam, timeout))
+        self.button_1 = Button(master, text='Start video', command=self.start_video)
         self.button_1.pack()
 
-        self.button_2 = Button(master, text='Close video', command=lambda: self.stop_video(cam, timeout))
+        self.button_2 = Button(master, text='Close video', command=self.stop_video)
         self.button_2.pack()
 
-        self.button_3 = Button(master, text='Change exposure', command=lambda: self.slider(cam, timeout))
-        self.button_3.pack()
-
-    def slider(self, cam, timeout):
-        exposure_time_to_set = self.slider_1.get()
+    def slider(self, value):
+        exposure_time_to_set = int(value)
         self.stream_state = False
-        self.configure_exposure(cam, exposure_time_to_set)
-        self.get_image_from_camera(cam, timeout)
+        self.configure_exposure(exposure_time_to_set)
+        self.get_image_from_camera()
         self.stream_state = True
 
     @staticmethod
     def show(value_1, value_2):
         print(f'Option: {value_1} and {value_2}')
 
-    def start_video(self, cam, timeout):
+    def start_video(self):
         self.stream_state = True
-        self.get_image_from_camera(cam, timeout)
+        self.get_image_from_camera()
 
-    def stop_video(self, cam, timeout):
+    def stop_video(self):
         self.stream_state = False
-        self.get_image_from_camera(cam, timeout)
+        self.get_image_from_camera()
 
-    @staticmethod
-    def configure_exposure(cam, exposure_time):
+    def configure_exposure(self, exposure_time):
         """
         This function configures a custom exposure time. Automatic exposure is turned
         off in order to allow for the customization, and then the custom setting is
         applied.
 
         :param exposure_time:
-        :param cam: Camera to configure exposure for.
-        :type cam: CameraPtr
         :return: True if successful, False otherwise.
         :rtype: bool
         """
@@ -88,11 +84,11 @@ class VideoStream:
             # example turns automatic exposure off to set it manually and back
             # on to return the camera to its default state.
 
-            if cam.ExposureAuto.GetAccessMode() != PySpin.RW:
+            if self.cam.ExposureAuto.GetAccessMode() != PySpin.RW:
                 print('Unable to disable automatic exposure. Aborting...')
                 return False
 
-            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+            self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
             print('Automatic exposure disabled...')
 
             # Set exposure time manually; exposure time recorded in microseconds
@@ -107,14 +103,14 @@ class VideoStream:
             # found out either by retrieving the unit with the GetUnit() method or
             # by checking SpinView.
 
-            if cam.ExposureTime.GetAccessMode() != PySpin.RW:
+            if self.cam.ExposureTime.GetAccessMode() != PySpin.RW:
                 print('Unable to set exposure time. Aborting...')
                 return False
 
             # Ensure desired exposure time does not exceed the maximum
 
-            exposure_time = min(cam.ExposureTime.GetMax(), exposure_time)
-            cam.ExposureTime.SetValue(exposure_time)
+            exposure_time = min(self.cam.ExposureTime.GetMax(), exposure_time)
+            self.cam.ExposureTime.SetValue(exposure_time)
             print('Shutter time set to %s us...\n' % exposure_time)
 
         except PySpin.SpinnakerException as ex:
@@ -157,7 +153,7 @@ class VideoStream:
         return result
 
     # Método que se encarga de tomar las imágenes de la cámara una vez ya inicializada.
-    def get_image_from_camera(self, cam, timeout):
+    def get_image_from_camera(self):
         try:
             if self.stream_state:
                 # Devuelve la siguiente imágen
@@ -170,7 +166,7 @@ class VideoStream:
                 # Una vez que la imagen del buffer se guarda y/o no se necesita mas, 
                 # la imagen debe liberarse para evitar que el buffer se llene.
 
-                image_result = cam.GetNextImage(timeout)
+                image_result = self.cam.GetNextImage(self.timeout)
 
                 # verifico que la imágen esta completa
                 if image_result.IsIncomplete():
@@ -189,7 +185,7 @@ class VideoStream:
                     self.panel.image = frame
 
                 # Llamo al para llamar nuevamente al método get_image_from_camera
-                self.panel.after(1, self.get_image_from_camera, cam, timeout)
+                self.panel.after(1, self.get_image_from_camera)
 
                 image_result.Release()
 
