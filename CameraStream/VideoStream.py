@@ -19,7 +19,8 @@ class Camera:
                           'Newest First',
                           'Oldest First',
                           'Oldeset First Overwrite']
-        
+
+        # Declaro las vairables
         self.var = tkinter.StringVar(master)        
         self.var.set(self.options[0])
         self.var_2 = tkinter.StringVar(master)        
@@ -31,42 +32,39 @@ class Camera:
         self.dropDownMenu_2 = tkinter.OptionMenu(master, self.var_2, *self.options_2)
         self.dropDownMenu_2.pack()
 
-        self.submit = tkinter.Button(master, text='Submit', command=lambda: self.show(self.var.get(), self.var_2.get()))
+        self.submit = tkinter.Button(master, text='Submit', command=self.show)
         self.submit.pack()
         
         self.video_stream = Label(master)
         self.video_stream.pack()
 
-        self.button_1 = Button(master, text='Start video', command=self.start_video)
+        self.button_1 = Button(master, text='Video ON/OFF', command=self.switch_video)
         self.button_1.pack()
 
-        self.button_2 = Button(master, text='Close video', command=self.stop_video)
+        self.button_2 = Button(master, text='Color', command=self.change)
         self.button_2.pack()
 
-        self.button_3 = Button(master, text='Color', command=self.change_1)
-        self.button_3.pack()
-
-        self.button_4 = Button(master, text='Color', command=self.change_2)
-        self.button_4.pack()
-
         self.camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
-    def start_video(self):
-        self.stream_state = True
         self.get_image_from_camera()
 
-    def stop_video(self):
-        self.stream_state = False
-        self.get_image_from_camera()
+    def switch_video(self):
+        if self.stream_state:
+            self.stream_state = False
+            self.get_image_from_camera()
 
-    def change_1(self):
-        self.color_change = True
+        else:
+            self.stream_state = True
+            self.get_image_from_camera()
 
-    def change_2(self):
-        self.color_change = False
+    def change(self):
+        if self.color_change:
+            self.color_change = False
+        else:
+            self.color_change = True
 
-    @staticmethod
-    def show(value_1, value_2):
+    def show(self):
+        value_1 = self.var.get()
+        value_2 = self.var_2.get()
         print(f'Option: {value_1} and {value_2}')
 
     def get_image_from_camera(self):
